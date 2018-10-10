@@ -86,7 +86,7 @@ class NodeSticker(object):
             try:
                 node.setIcon(icon)
             except RuntimeError:
-                raise("Not a valid icon: {!r}".format(icon))
+                raise RuntimeError("Not a valid icon: {!r}".format(icon))
 
             has_attr = node.hasAttribute(self.ICON_ATTRIBUTE)
             set_icon = icon != ""
