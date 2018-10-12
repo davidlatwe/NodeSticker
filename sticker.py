@@ -1,145 +1,149 @@
 
+"""Put custom icon on any node for display in the Maya GUI
+
+Currently the icon only shows up in Outliner panels (the DAG Outliner,
+Graph Editor and Dope Sheet).
+
+Note:
+    Powered by Maya Python API 1.0, API 2.0 didn't able to do this.
+    The key was the `setIcon` method in `MFnDependencyNode` class, Python
+    API 2.0 didn't have that method.
+
+Example Usage:
+    >> import sticker
+    >> sticker.put("pSphereShape1", "polyUnite.png")
+
+    Remove custom icon
+    >> sticker.remove("pSphereShape1")
+
+    Custom icon displayed in GUI will not persist after scene closed, but
+    the icon path wiil be saved into node's custom attribute, so next time
+    we only need to call `reveal` to reveal custom icon in GUI.
+
+    Reveal custom icon from previous saved scene
+    >> sticker.reveal()
+
+"""
 from maya import OpenMaya as oldOm
 
 
-class NodeSticker(object):
-    """Put custom icon on any node for display in the Maya GUI
+ICON_ATTRIBUTE = "customIconPath"
+ICON_ATTR = "cuip"
 
-    Currently the icon only shows up in Outliner panels (the DAG Outliner,
-    Graph Editor and Dope Sheet).
 
-    Note:
-        Powered by Maya Python API 1.0, API 2.0 didn't able to do this.
-        The key was the `setIcon` method in `MFnDependencyNode` class, Python
-        API 2.0 didn't have that method.
+def put(target, icon):
+    """Associates a custom icon with the node for display in the Maya UI
 
-    Example Usage:
-        >> sticker = NodeSticker()
-        >> sticker.set("pSphereShape1", "polyUnite.png")
-
-        Remove custom icon
-        >> sticker.revert("pSphereShape1")
-
-        Custom icon displayed in GUI will not persist after scene closed, but
-        the icon path wiil be saved into node's custom attribute, so next time
-        we only need to call `show` to reveal custom icon in GUI.
-
-        Reveal custom icon
-        >> sticker.show()
+    Arguments:
+        target (str, list): Node name
+        icon (str): icon file, must be a PNG file (.png) and may
+            either be an absolute pathname or be relative to the
+            `XBMLANGPATH` environment variable.
 
     """
+    target = _parse_target(target)
+    mfn_nodes = _parse_nodes(target)
+    mattr = _create_attribute()
 
-    ICON_ATTRIBUTE = "customIconPath"
-    ICON_ATTR = "cuip"
+    for node in mfn_nodes:
+        try:
+            node.setIcon(icon)
+        except RuntimeError:
+            raise RuntimeError("Not a valid icon: {!r}".format(icon))
 
-    def _parse_target(self, target):
-        """Internal function for type check"""
-        if isinstance(target, (str, unicode)):
-            target = [target]
+        has_attr = node.hasAttribute(ICON_ATTRIBUTE)
+        set_icon = icon != ""
 
-        if not isinstance(target, (list, tuple)):
-            raise TypeError("`target` should be string or list.")
+        if set_icon:
+            if not has_attr:
+                # Add attribute to save icon path
+                node.addAttribute(mattr)
 
-        if not len(target):
-            raise ValueError("No input target, selection empty.")
+            plug = node.findPlug(ICON_ATTRIBUTE)
+            plug.setString(icon)
 
-        return target
+        elif has_attr:
+            del_cmd = "deleteAttr -at {attr} {node}".format(
+                attr=ICON_ATTRIBUTE,
+                node=node.name()
+            )
+            oldOm.MGlobal.executeCommand(del_cmd)
 
-    def _parse_nodes(self, target):
-        """Internal function for getting MFnDependencyNode"""
-        mfn_nodes = list()
-        sel_list = oldOm.MSelectionList()
 
-        for path in target:
-            sel_list.add(path)
+def remove(target):
+    """Revert back to Node's default icon
 
-        for i in range(len(target)):
-            mobj = oldOm.MObject()
-            sel_list.getDependNode(i, mobj)
-            mfn_nodes.append(oldOm.MFnDependencyNode(mobj))
+    Arguments:
+        target (str, list): Node name
 
-        return mfn_nodes
+    """
+    put(target, icon="")
 
-    def _create_attribute(self):
-        """Internal function for attribute create"""
-        attr = oldOm.MFnTypedAttribute()
-        mattr = attr.create(self.ICON_ATTRIBUTE,
-                            self.ICON_ATTR,
-                            oldOm.MFnData.kString)
-        return mattr
 
-    def set(self, target, icon):
-        """Associates a custom icon with the node for display in the Maya UI
+def reveal():
+    """Reveal custom icon from previous saved scene
 
-        Arguments:
-            target (str, list): Node name
-            icon (str): icon file, must be a PNG file (.png) and may
-                either be an absolute pathname or be relative to the
-                `XBMLANGPATH` environment variable.
+    Can use with scene open callback for auto display custom icon saved
+    from previous session.
 
-        """
-        target = self._parse_target(target)
-        mfn_nodes = self._parse_nodes(target)
-        mattr = self._create_attribute()
+    """
+    sel_list = oldOm.MSelectionList()
+    ns_list = [""] + oldOm.MNamespace.getNamespaces(":", True)
+    for ns in ns_list:
+        if ns in (":UI", ":shared"):
+            continue
+        try:
+            sel_list.add(ns + ":*." + ICON_ATTRIBUTE)
+        except RuntimeError:
+            pass
 
-        for node in mfn_nodes:
-            try:
-                node.setIcon(icon)
-            except RuntimeError:
-                raise RuntimeError("Not a valid icon: {!r}".format(icon))
+    for i in range(sel_list.length()):
+        mobj = oldOm.MObject()
+        sel_list.getDependNode(i, mobj)
+        node = oldOm.MFnDependencyNode(mobj)
+        plug = node.findPlug(ICON_ATTRIBUTE)
+        icon_path = plug.asString()
 
-            has_attr = node.hasAttribute(self.ICON_ATTRIBUTE)
-            set_icon = icon != ""
+        try:
+            node.setIcon(icon_path)
+        except RuntimeError:
+            pass
 
-            if set_icon:
-                if not has_attr:
-                    # Add attribute to save icon path
-                    node.addAttribute(mattr)
 
-                plug = node.findPlug(self.ICON_ATTRIBUTE)
-                plug.setString(icon)
+def _parse_target(target):
+    """Internal function for type check"""
+    if isinstance(target, (str, unicode)):
+        target = [target]
 
-            elif has_attr:
-                del_cmd = "deleteAttr -at {attr} {node}".format(
-                    attr=self.ICON_ATTRIBUTE,
-                    node=node.name()
-                )
-                oldOm.MGlobal.executeCommand(del_cmd)
+    if not isinstance(target, (list, tuple)):
+        raise TypeError("`target` should be string or list.")
 
-    def revert(self, target):
-        """Revert back to Node's default icon
+    if not len(target):
+        raise ValueError("No input target, selection empty.")
 
-        Arguments:
-            target (str, list): Node name
+    return target
 
-        """
-        self.set(target, icon="")
 
-    def show(self):
-        """Reveal custom icon from previous saved in scene
+def _parse_nodes(target):
+    """Internal function for getting MFnDependencyNode"""
+    mfn_nodes = list()
+    sel_list = oldOm.MSelectionList()
 
-        Can use with scene open callback for auto display custom icon saved
-        from previous session.
+    for path in target:
+        sel_list.add(path)
 
-        """
-        sel_list = oldOm.MSelectionList()
-        ns_list = [""] + oldOm.MNamespace.getNamespaces(":", True)
-        for ns in ns_list:
-            if ns in (":UI", ":shared"):
-                continue
-            try:
-                sel_list.add(ns + ":*." + self.ICON_ATTRIBUTE)
-            except RuntimeError:
-                pass
+    for i in range(len(target)):
+        mobj = oldOm.MObject()
+        sel_list.getDependNode(i, mobj)
+        mfn_nodes.append(oldOm.MFnDependencyNode(mobj))
 
-        for i in range(sel_list.length()):
-            mobj = oldOm.MObject()
-            sel_list.getDependNode(i, mobj)
-            node = oldOm.MFnDependencyNode(mobj)
-            plug = node.findPlug(self.ICON_ATTRIBUTE)
-            icon_path = plug.asString()
+    return mfn_nodes
 
-            try:
-                node.setIcon(icon_path)
-            except RuntimeError:
-                pass
+
+def _create_attribute():
+    """Internal function for attribute create"""
+    attr = oldOm.MFnTypedAttribute()
+    mattr = attr.create(ICON_ATTRIBUTE,
+                        ICON_ATTR,
+                        oldOm.MFnData.kString)
+    return mattr
