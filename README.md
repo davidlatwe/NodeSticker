@@ -7,19 +7,17 @@
 ### Example
 
 ```python
-from sticker import NodeSticker
-
-sticker = NodeSticker()
+import sticker
 
 # Set icon
-sticker.set(["nodeShape1", "nodeShape2"], "polyCube.png")
-sticker.set("nodeShape3", "path/to/my_icon.png")
+sticker.put(["nodeShape1", "nodeShape2"], "polyCube.png")
+sticker.put("nodeShape3", "path/to/my_icon.png")
 
-# Revert to default
-sticker.revert("nodeShape1")
+# Revert to default icon
+sticker.remove("nodeShape1")
 
-# Reveal from saved file
-sticker.show()
+# Reveal icons from saved file
+sticker.reveal()
 
 ```
 
