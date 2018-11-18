@@ -25,6 +25,7 @@ sticker.reveal()
 * Icon file format must be `PNG`.
 * Preferred size in the Outliner is 20 x 20 pixels.
 * File path can be an absolute path or be relative to the `XBMLANGPATH` environment variable.
+* Can use environ var in path in these form: `$var` `${var}` `%var%`
 * Will add a custom attribute `customIconPath` in node to save icon path.
 * Powered by Maya Python API 1.0 (Can not achieve with 2.0)
 
