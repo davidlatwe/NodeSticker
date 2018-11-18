@@ -24,6 +24,7 @@ Example Usage:
     >> sticker.reveal()
 
 """
+import os
 from maya import OpenMaya as oldOm
 
 
@@ -47,7 +48,7 @@ def put(target, icon):
 
     for node in mfn_nodes:
         try:
-            node.setIcon(icon)
+            node.setIcon(os.path.expandvars(icon))
         except RuntimeError:
             raise RuntimeError("Not a valid icon: {!r}".format(icon))
 
@@ -105,7 +106,7 @@ def reveal():
         icon_path = plug.asString()
 
         try:
-            node.setIcon(icon_path)
+            node.setIcon(os.path.expandvars(icon_path))
         except RuntimeError:
             pass
 
